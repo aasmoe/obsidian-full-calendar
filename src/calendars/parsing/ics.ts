@@ -20,35 +20,42 @@ function extractEventUrl(iCalEvent: ical.Event): string {
     return urlProp ? urlProp.getFirstValue() : "";
 }
 
-
 function specifiesEnd(iCalEvent: ical.Event): boolean {
-    return Boolean(iCalEvent.component.getFirstProperty("dtend")) ||
-           Boolean(iCalEvent.component.getFirstProperty("duration"));
+    return (
+        Boolean(iCalEvent.component.getFirstProperty("dtend")) ||
+        Boolean(iCalEvent.component.getFirstProperty("duration"))
+    );
 }
 
 function convertUtcToLocal(time: ical.Time): DateTime {
-    const isUtc = !time.zone || time.zone.tzid === 'Z'; // Use 'Z' to detect standard UTC, otherwise its floating
+    const isUtc = !time.zone || time.zone.tzid === "Z"; // Use 'Z' to detect standard UTC, otherwise its floating
     const jsDate = time.toJSDate();
     if (isUtc) {
-        return DateTime.fromJSDate(jsDate, { zone: 'utc' }).setZone('local');
+        return DateTime.fromJSDate(jsDate, { zone: "utc" }).setZone("local");
     }
-    return DateTime.fromJSDate(jsDate, { zone: 'local' });
+    return DateTime.fromJSDate(jsDate, { zone: "local" });
 }
 
 function icsToOFC(input: ical.Event): OFCEvent {
     const isAllDay = input.startDate.isDate;
 
     if (input.isRecurring()) {
-        const rrule = rrulestr(input.component.getFirstProperty("rrule").getFirstValue().toString());
-        const exdates = input.component.getAllProperties("exdate").map((exdateProp) => {
-            const exdate = exdateProp.getFirstValue();
-            return getDate(convertUtcToLocal(exdate));
-        });
+        const rrule = rrulestr(
+            input.component.getFirstProperty("rrule").getFirstValue().toString()
+        );
+        const exdates = input.component
+            .getAllProperties("exdate")
+            .map((exdateProp) => {
+                const exdate = exdateProp.getFirstValue();
+                return getDate(convertUtcToLocal(exdate));
+            });
 
         return {
             type: "rrule",
             title: input.summary,
-            id: `ics::${input.uid}::${getDate(convertUtcToLocal(input.startDate))}::recurring`,
+            id: `ics::${input.uid}::${getDate(
+                convertUtcToLocal(input.startDate)
+            )}::recurring`,
             rrule: rrule.toString(),
             skipDates: exdates,
             startDate: getDate(convertUtcToLocal(input.startDate)),
@@ -62,7 +69,10 @@ function icsToOFC(input: ical.Event): OFCEvent {
         };
     } else {
         const localStart = convertUtcToLocal(input.startDate);
-        const localEnd = specifiesEnd(input) && input.endDate ? convertUtcToLocal(input.endDate) : undefined;
+        const localEnd =
+            specifiesEnd(input) && input.endDate
+                ? convertUtcToLocal(input.endDate)
+                : undefined;
         return {
             type: "single",
             id: `ics::${input.uid}::${getDate(localStart)}::single`,
@@ -84,7 +94,8 @@ export function getEventsFromICS(text: string): OFCEvent[] {
     const jCalData = ical.parse(text);
     const component = new ical.Component(jCalData);
 
-    const events: ical.Event[] = component.getAllSubcomponents("vevent")
+    const events: ical.Event[] = component
+        .getAllSubcomponents("vevent")
         .map((vevent) => new ical.Event(vevent))
         .filter((evt) => {
             try {
@@ -92,12 +103,14 @@ export function getEventsFromICS(text: string): OFCEvent[] {
                 if (evt.endDate) evt.endDate.toJSDate();
                 return true;
             } catch (err) {
-                return false;  // skip invalid date events
+                return false; // skip invalid date events
             }
         });
 
     const baseEvents = Object.fromEntries(
-        events.filter((e) => e.recurrenceId === null).map((e) => [e.uid, icsToOFC(e)])
+        events
+            .filter((e) => e.recurrenceId === null)
+            .map((e) => [e.uid, icsToOFC(e)])
     );
 
     const recurrenceExceptions = events
@@ -118,7 +131,10 @@ export function getEventsFromICS(text: string): OFCEvent[] {
         baseEvent.skipDates.push(event.date);
     }
 
-    return [...Object.values(baseEvents), ...recurrenceExceptions.map((e) => e[1])]
+    return [
+        ...Object.values(baseEvents),
+        ...recurrenceExceptions.map((e) => e[1]),
+    ]
         .map(validateEvent)
         .flatMap((e) => (e ? [e] : []));
 }
