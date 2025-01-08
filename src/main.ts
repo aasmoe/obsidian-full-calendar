@@ -72,11 +72,15 @@ export default class FullCalendarPlugin extends Plugin {
                 active: true,
             });
         } else {
+            const leaf = leaves[0];
+            this.app.workspace.revealLeaf(leaf);
+
             await Promise.all(
                 leaves.map((l) => (l.view as CalendarView).onOpen())
             );
         }
     }
+
     async onload() {
         await this.loadSettings();
 
