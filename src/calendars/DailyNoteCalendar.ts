@@ -20,6 +20,9 @@ import { ObsidianInterface } from "../ObsidianAdapter";
 import { OFCEvent, EventLocation, CalendarInfo, validateEvent } from "../types";
 import { EventResponse } from "./Calendar";
 import { EditableCalendar, EditableEventResponse } from "./EditableCalendar";
+import React from "react";
+import DailyNoteModal from "../ui/components/DailyNoteModal";
+import ReactModal from "src/ui/ReactModal";
 
 const DATE_FORMAT = "YYYY-MM-DD";
 
@@ -226,6 +229,7 @@ const addToHeading = (
         lines.splice(lineNumber, 0, listItem);
         return { page: lines.join("\n"), lineNumber };
     } else {
+        // If the heading does not exist, add it.
         lines.push(`## ${headingText}`);
         lines.push(listItem);
         return { page: lines.join("\n"), lineNumber: lines.length - 1 };
@@ -288,7 +292,7 @@ export default class DailyNoteCalendar extends EditableCalendar {
         ).flat();
     }
 
-    async createEvent(event: OFCEvent): Promise<EventLocation> {
+    async createEvent(event: OFCEvent): Promise<EventLocation | null> {
         if (event.type !== "single" && event.type !== undefined) {
             console.debug(
                 "tried creating a recurring event in a daily note",
@@ -299,18 +303,61 @@ export default class DailyNoteCalendar extends EditableCalendar {
         const m = moment(event.date);
         let file = getDailyNote(m, getAllDailyNotes()) as TFile;
         if (!file) {
-            file = (await createDailyNote(m)) as TFile;
+            // Create a promise wrapper for modal logic
+            file = await new Promise((resolve, reject) => {
+                const handleCreate = async () => {
+                    try {
+                        const newFile = (await createDailyNote(m)) as TFile;
+                        modal.close();
+                        resolve(newFile);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+
+                const handleCancel = () => {
+                    modal.close();
+                };
+
+                const fileName = m.format("YYYY-MM-DD"); // Example filename format
+
+                const modal = new ReactModal(app, async () =>
+                    React.createElement(DailyNoteModal, {
+                        fileName,
+                        onCancel: handleCancel,
+                        onCreate: handleCreate,
+                    })
+                );
+
+                modal.open();
+            });
+
+            if (!file) {
+                return null; // Return null if file creation was cancelled
+            }
         }
         const metadata = await this.app.waitForMetadata(file);
 
-        const headingInfo = metadata.headings?.find(
+        let headingInfo = metadata.headings?.find(
             (h) => h.heading == this.heading
         );
+        // If the heading does not exist, add it.
         if (!headingInfo) {
-            throw new Error(
-                `Could not find heading ${this.heading} in daily note ${file.path}.`
-            );
+            await this.app.rewrite(file, (contents) => {
+                contents += `\n## ${this.heading}\n`;
+                headingInfo = {
+                    heading: this.heading,
+                    position: {
+                        start: {
+                            line: contents.split("\n").length - 1,
+                            offset: 0,
+                        },
+                    },
+                } as HeadingCache;
+                return contents;
+            });
         }
+
         let lineNumber = await this.app.rewrite(file, (contents) => {
             const { page, lineNumber } = addToHeading(contents, {
                 heading: headingInfo,

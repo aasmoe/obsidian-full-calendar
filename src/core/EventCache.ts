@@ -306,6 +306,9 @@ export default class EventCache {
             throw new Error(`Cannot add event to a read-only calendar`);
         }
         const location = await calendar.createEvent(event);
+        if (!location) {
+            return false;
+        }
         const id = this.store.add({
             calendar,
             location,

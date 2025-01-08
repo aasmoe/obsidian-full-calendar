@@ -40,7 +40,7 @@ export abstract class EditableCalendar extends Calendar {
      * Create an event in this calendar.
      * @param event Event to create.
      */
-    abstract createEvent(event: OFCEvent): Promise<EventLocation>;
+    abstract createEvent(event: OFCEvent): Promise<EventLocation | null>;
 
     /**
      * Delete an event from the calendar.
