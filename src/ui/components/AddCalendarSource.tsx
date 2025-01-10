@@ -2,17 +2,22 @@ import * as React from "react";
 import { useState } from "react";
 import { CalendarInfo } from "../../types";
 
+// Define a type for creating change listeners
 type ChangeListener = <T extends Partial<CalendarInfo>>(
     fromString: (val: string) => T
 ) => React.ChangeEventHandler<HTMLInputElement | HTMLSelectElement>;
+
+// Define a type for a subset of CalendarInfo
 type SourceWith<T extends Partial<CalendarInfo>, K> = T extends K ? T : never;
 
+// DirectorySelect component props
 interface DirectorySelectProps<T extends Partial<CalendarInfo>> {
     source: T;
     changeListener: ChangeListener;
     directories: string[];
 }
 
+// DirectorySelect component
 function DirectorySelect<T extends Partial<CalendarInfo>>({
     source,
     changeListener,
@@ -53,11 +58,13 @@ function DirectorySelect<T extends Partial<CalendarInfo>>({
     );
 }
 
+// Basic props for components that need a change listener and a source
 interface BasicProps<T extends Partial<CalendarInfo>> {
     source: T;
     changeListener: ChangeListener;
 }
 
+// ColorPicker component
 function ColorPicker<T extends Partial<CalendarInfo>>({
     source,
     changeListener,
@@ -83,6 +90,7 @@ function ColorPicker<T extends Partial<CalendarInfo>>({
     );
 }
 
+// UrlInput component
 function UrlInput<T extends Partial<CalendarInfo>>({
     source,
     changeListener,
@@ -111,6 +119,7 @@ function UrlInput<T extends Partial<CalendarInfo>>({
     );
 }
 
+// UsernameInput component
 function UsernameInput<T extends Partial<CalendarInfo>>({
     source,
     changeListener,
@@ -139,6 +148,7 @@ function UsernameInput<T extends Partial<CalendarInfo>>({
     );
 }
 
+// HeadingInput component
 function HeadingInput<T extends Partial<CalendarInfo>>({
     source,
     changeListener,
@@ -188,6 +198,7 @@ function HeadingInput<T extends Partial<CalendarInfo>>({
     );
 }
 
+// PasswordInput component
 function PasswordInput<T extends Partial<CalendarInfo>>({
     source,
     changeListener,
@@ -216,87 +227,163 @@ function PasswordInput<T extends Partial<CalendarInfo>>({
     );
 }
 
+// AddCalendarSource component props
 interface AddCalendarProps {
-    source: Partial<CalendarInfo>;
     directories: string[];
     headings: string[];
-    submit: (source: CalendarInfo) => Promise<void>;
+    submit: (setting: CalendarInfo) => Promise<void>;
 }
 
+// AddCalendarSource component
 export const AddCalendarSource = ({
-    source,
     directories,
     headings,
     submit,
 }: AddCalendarProps) => {
-    const isCalDAV = source.type === "caldav";
+    // Initialize state with default values
+    const defaultSource: Partial<CalendarInfo> = {
+        type: "local",
+        name: "New Calendar",
+        color: "#ffffff", // Example default color
+    };
 
-    const [setting, setSettingState] = useState(source);
+    // Use defaultSource to initialize component state
+    const [setting, setSettingState] =
+        useState<Partial<CalendarInfo>>(defaultSource);
+    const [calendarType, setCalendarType] = useState<CalendarInfo["type"]>(
+        setting.type || "local"
+    );
+    const [calendarName, setCalendarName] = useState(
+        setting.name || calendarType
+    );
     const [submitting, setSubmitingState] = useState(false);
     const [submitText, setSubmitText] = useState(
-        isCalDAV ? "Import Calendars" : "Add Calendar"
+        calendarType === "caldav" ? "Import Calendars" : "Add Calendar"
     );
 
-    function makeChangeListener<T extends Partial<CalendarInfo>>(
+    // Utility function for handling input changes
+    const makeChangeListener = <T extends Partial<CalendarInfo>>(
         fromString: (val: string) => T
-    ): React.ChangeEventHandler<HTMLInputElement | HTMLSelectElement> {
-        return (e) => setSettingState(fromString(e.target.value));
-    }
+    ): React.ChangeEventHandler<HTMLInputElement | HTMLSelectElement> => {
+        return (e) => {
+            const value = e.target.value;
+            const updatedObject = fromString(value);
+            setSettingState((prev) => ({
+                ...prev,
+                ...updatedObject,
+            }));
+        };
+    };
 
+    // Update state when calendar type changes
+    const handleTypeChange = (newType: string) => {
+        const validType = newType as CalendarInfo["type"];
+        setCalendarType(validType);
+        const updatedSource = { type: validType }; // New mapping if needed
+        setSettingState((prev) => ({ ...prev, ...updatedSource }));
+        setCalendarName((prev) => prev || validType); // Preserve existing name or set based on type
+        setSubmitText(
+            validType === "caldav" ? "Import Calendars" : "Add Calendar"
+        );
+    };
+
+    // Handle form submission
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!submitting) {
             setSubmitingState(true);
-            setSubmitText(isCalDAV ? "Importing Calendars" : "Adding Calendar");
-            await submit(setting as CalendarInfo);
+            setSubmitText(
+                calendarType === "caldav"
+                    ? "Importing Calendars"
+                    : "Adding Calendar"
+            );
+            await submit({ ...setting, name: calendarName } as CalendarInfo);
         }
     };
 
     return (
         <div className="vertical-tab-content">
             <form onSubmit={handleSubmit}>
-                {!isCalDAV && (
-                    // CalDAV can import multiple calendars. Instead of picking
-                    // a single color to be used for all calendars, default to the
-                    // colors reported from the server. Users can change that later
-                    // if they wish.
-                    <ColorPicker
+                {/* Calendar Type Dropdown */}
+                <div className="setting-item">
+                    <div className="setting-item-info">
+                        <div className="setting-item-name">Calendar Type</div>
+                        <div className="setting-item-description">
+                            Select the type of calendar to add
+                        </div>
+                    </div>
+                    <div className="setting-item-control">
+                        <select
+                            value={calendarType}
+                            onChange={(e) => handleTypeChange(e.target.value)}
+                        >
+                            <option value="local">Full note</option>
+                            <option value="dailynote">Daily Note</option>
+                            <option value="ical">Remote (.ics format)</option>
+                            <option value="caldav">CalDAV</option>
+                        </select>
+                    </div>
+                </div>
+
+                {/* Calendar Name Input */}
+                <div className="setting-item">
+                    <div className="setting-item-info">
+                        <div className="setting-item-name">Calendar Name</div>
+                        <div className="setting-item-description">
+                            Provide a name for the calendar
+                        </div>
+                    </div>
+                    <div className="setting-item-control">
+                        <input
+                            type="text"
+                            value={calendarName}
+                            onChange={(e) => setCalendarName(e.target.value)}
+                            placeholder="Calendar Name"
+                        />
+                    </div>
+                </div>
+
+                {/* Conditional inputs based on calendar type */}
+                {(calendarType === "ical" || calendarType === "caldav") && (
+                    <UrlInput
                         source={setting}
                         changeListener={makeChangeListener}
                     />
                 )}
-                {source.type === "local" && (
+                {calendarType === "caldav" && (
+                    <>
+                        <UsernameInput
+                            source={setting}
+                            changeListener={makeChangeListener}
+                        />
+                        <PasswordInput
+                            source={setting}
+                            changeListener={makeChangeListener}
+                        />
+                    </>
+                )}
+                {calendarType === "local" && (
                     <DirectorySelect
                         source={setting}
                         changeListener={makeChangeListener}
                         directories={directories}
                     />
                 )}
-                {source.type === "dailynote" && (
+                {calendarType === "dailynote" && (
                     <HeadingInput
                         source={setting}
                         changeListener={makeChangeListener}
                         headings={headings}
                     />
                 )}
-                {source.type === "ical" || source.type === "caldav" ? (
-                    <UrlInput
-                        source={setting}
-                        changeListener={makeChangeListener}
-                    />
-                ) : null}
-                {isCalDAV && (
-                    <UsernameInput
+                {calendarType !== "caldav" && (
+                    <ColorPicker
                         source={setting}
                         changeListener={makeChangeListener}
                     />
                 )}
-                {isCalDAV && (
-                    <PasswordInput
-                        source={setting}
-                        changeListener={makeChangeListener}
-                    />
-                )}
+
+                {/* Submit button */}
                 <div className="setting-item">
                     <div className="setting-item-info" />
                     <div className="setting-control">

@@ -123,7 +123,6 @@ export const CalendarSettingRow = ({
     onColorChange,
     deleteCalendar,
 }: CalendarSettingsProps) => {
-    const isCalDAV = setting.type === "caldav";
     return (
         <div className="setting-item">
             <button
@@ -133,6 +132,9 @@ export const CalendarSettingRow = ({
             >
                 ✕
             </button>
+            {setting.name && <NameSetting source={setting} />}{" "}
+            {/* Displaying name if set */}
+            {/* Conditionally show based on type */}
             {setting.type === "local" ? (
                 <DirectorySetting source={setting} />
             ) : setting.type === "dailynote" ? (
@@ -140,8 +142,7 @@ export const CalendarSettingRow = ({
             ) : (
                 <UrlSetting source={setting} />
             )}
-            {isCalDAV && <NameSetting source={setting} />}
-            {isCalDAV && <Username source={setting} />}
+            {setting.type === "caldav" && <Username source={setting} />}
             <input
                 style={{ maxWidth: "25%", minWidth: "3rem" }}
                 type="color"

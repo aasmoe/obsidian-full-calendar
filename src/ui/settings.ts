@@ -1,14 +1,13 @@
 import FullCalendarPlugin from "../main";
 import {
     App,
-    DropdownComponent,
     Notice,
     PluginSettingTab,
     Setting,
     TFile,
     TFolder,
 } from "obsidian";
-import { makeDefaultPartialCalendarSource, CalendarInfo } from "../types";
+import { CalendarInfo } from "../types";
 import { CalendarSettings } from "./components/CalendarSetting";
 import { AddCalendarSource } from "./components/AddCalendarSource";
 import * as ReactDOM from "react-dom";
@@ -72,25 +71,14 @@ export function addCalendarButton(
     submitCallback: (setting: CalendarInfo) => void,
     listUsedDirectories?: () => string[]
 ) {
-    let dropdown: DropdownComponent;
     const directories = app.vault
         .getAllLoadedFiles()
         .filter((f) => f instanceof TFolder)
         .map((f) => f.path);
 
-    return new Setting(containerEl)
+    new Setting(containerEl)
         .setName("Calendars")
         .setDesc("Add calendar")
-        .addDropdown(
-            (d) =>
-                (dropdown = d.addOptions({
-                    local: "Full note",
-                    dailynote: "Daily Note",
-                    icloud: "iCloud",
-                    caldav: "CalDAV",
-                    ical: "Remote (.ics format)",
-                }))
-        )
         .addExtraButton((button) => {
             button.setTooltip("Add Calendar");
             button.setIcon("plus-with-circle");
@@ -125,23 +113,23 @@ export function addCalendarButton(
                     }
 
                     return createElement(AddCalendarSource, {
-                        source: makeDefaultPartialCalendarSource(
-                            dropdown.getValue() as CalendarInfo["type"]
-                        ),
                         directories: directories.filter(
                             (dir) => usedDirectories.indexOf(dir) === -1
                         ),
                         headings,
-                        submit: async (source: CalendarInfo) => {
-                            if (source.type === "caldav") {
+                        submit: async (sourceWithName: CalendarInfo) => {
+                            if (!sourceWithName.name) {
+                                sourceWithName.name = sourceWithName.type;
+                            }
+                            if (sourceWithName.type === "caldav") {
                                 try {
                                     let sources = await importCalendars(
                                         {
                                             type: "basic",
-                                            username: source.username,
-                                            password: source.password,
+                                            username: sourceWithName.username,
+                                            password: sourceWithName.password,
                                         },
-                                        source.url
+                                        sourceWithName.url
                                     );
                                     sources.forEach((source) =>
                                         submitCallback(source)
@@ -152,7 +140,7 @@ export function addCalendarButton(
                                     }
                                 }
                             } else {
-                                submitCallback(source);
+                                submitCallback(sourceWithName);
                             }
                             modal.close();
                         },

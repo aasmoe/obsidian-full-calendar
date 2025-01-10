@@ -45,7 +45,7 @@ export default class FullCalendarPlugin extends Plugin {
             info.type === "caldav"
                 ? new CalDAVCalendar(
                       info.color,
-                      info.name,
+                      info.name || "CalDAV Calendar",
                       {
                           type: "basic",
                           username: info.username,

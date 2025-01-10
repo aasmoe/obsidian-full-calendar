@@ -7,7 +7,7 @@ const calendarOptionsSchema = z.discriminatedUnion("type", [
     z.object({ type: z.literal("ical"), url: z.string().url() }),
     z.object({
         type: z.literal("caldav"),
-        name: z.string(),
+        name: z.string().optional(), // Optional to be consistent across types
         url: z.string().url(),
         homeUrl: z.string().url(),
         username: z.string(),
@@ -27,7 +27,7 @@ export type CalendarInfo = (
     | z.infer<typeof calendarOptionsSchema>
     | TestSource
 ) &
-    z.infer<typeof colorValidator>;
+    z.infer<typeof colorValidator> & { name?: string }; // Allow `name` to be part of CalendarInfo
 
 export function parseCalendarInfo(obj: unknown): CalendarInfo {
     const options = calendarOptionsSchema.parse(obj);
