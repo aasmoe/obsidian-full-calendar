@@ -15,6 +15,7 @@ import { createElement } from "react";
 import { getDailyNoteSettings } from "obsidian-daily-notes-interface";
 import ReactModal from "./ReactModal";
 import { importCalendars } from "src/calendars/parsing/caldav/import";
+import { MultiSelectModal } from "./MultiSelectModal";
 
 export interface FullCalendarSettings {
     calendarSources: CalendarInfo[];
@@ -23,6 +24,10 @@ export interface FullCalendarSettings {
     initialView: {
         desktop: string;
         mobile: string;
+    };
+    availableViews: {
+        desktop: string[];
+        mobile: string[];
     };
     timeFormat24h: boolean;
     clickToCreateEventFromMonthView: boolean;
@@ -35,6 +40,10 @@ export const DEFAULT_SETTINGS: FullCalendarSettings = {
     initialView: {
         desktop: "timeGridWeek",
         mobile: "timeGrid3Days",
+    },
+    availableViews: {
+        desktop: ["timeGridDay", "timeGridWeek", "dayGridMonth", "listWeek"],
+        mobile: ["timeGrid3Days", "timeGridDay", "listWeek"],
     },
     timeFormat24h: false,
     clickToCreateEventFromMonthView: true,
@@ -49,6 +58,24 @@ const WEEKDAYS = [
     "Friday",
     "Saturday",
 ];
+
+const AVAILABLE_VIEWS: {
+    desktop: Record<string, string>;
+    mobile: Record<string, string>;
+} = {
+    desktop: {
+        dayGridMonth: "Month",
+        timeGridWeek: "Week",
+        timeGridDay: "Day",
+        listWeek: "List",
+    },
+    mobile: {
+        dayGridMonth: "Month",
+        timeGrid3Days: "3 Days",
+        timeGridDay: "Day",
+        listWeek: "List",
+    },
+};
 
 const INITIAL_VIEW_OPTIONS = {
     DESKTOP: {
@@ -164,37 +191,19 @@ export class FullCalendarSettingTab extends PluginSettingTab {
         containerEl.empty();
 
         containerEl.createEl("h2", { text: "Calendar Preferences" });
-        new Setting(containerEl)
-            .setName("Desktop Initial View")
-            .setDesc("Choose the initial view range on desktop devices.")
-            .addDropdown((dropdown) => {
-                Object.entries(INITIAL_VIEW_OPTIONS.DESKTOP).forEach(
-                    ([value, display]) => {
-                        dropdown.addOption(value, display);
-                    }
-                );
-                dropdown.setValue(this.plugin.settings.initialView.desktop);
-                dropdown.onChange(async (initialView) => {
-                    this.plugin.settings.initialView.desktop = initialView;
-                    await this.plugin.saveSettings();
-                });
-            });
 
-        new Setting(containerEl)
-            .setName("Mobile Initial View")
-            .setDesc("Choose the initial view range on mobile devices.")
-            .addDropdown((dropdown) => {
-                Object.entries(INITIAL_VIEW_OPTIONS.MOBILE).forEach(
-                    ([value, display]) => {
-                        dropdown.addOption(value, display);
-                    }
-                );
-                dropdown.setValue(this.plugin.settings.initialView.mobile);
-                dropdown.onChange(async (initialView) => {
-                    this.plugin.settings.initialView.mobile = initialView;
-                    await this.plugin.saveSettings();
-                });
-            });
+        // General Settings
+        this.addGeneralSettings(containerEl);
+
+        // View Settings
+        this.addViewSettings(containerEl);
+
+        // Manage Calendars
+        this.addManageCalendars(containerEl);
+    }
+
+    addGeneralSettings(containerEl: HTMLElement) {
+        containerEl.createEl("h3", { text: "General Settings" });
 
         new Setting(containerEl)
             .setName("Starting Day of the Week")
@@ -215,26 +224,117 @@ export class FullCalendarSettingTab extends PluginSettingTab {
             .setDesc("Display the time in a 24-hour format.")
             .addToggle((toggle) => {
                 toggle.setValue(this.plugin.settings.timeFormat24h);
-                toggle.onChange(async (val) => {
-                    this.plugin.settings.timeFormat24h = val;
+                toggle.onChange(async (value) => {
+                    this.plugin.settings.timeFormat24h = value;
                     await this.plugin.saveSettings();
                 });
             });
+    }
 
+    addViewSettings(containerEl: HTMLElement) {
+        containerEl.createEl("h3", { text: "View Settings" });
+
+        // Checkboxes for Desktop Views
         new Setting(containerEl)
-            .setName("Click on a day in month view to create event")
-            .setDesc("Switch off to open day view on click instead.")
-            .addToggle((toggle) => {
-                toggle.setValue(
-                    this.plugin.settings.clickToCreateEventFromMonthView
+            .setName("Desktop Views")
+            .setDesc("Choose the views available on desktop devices.")
+            .addButton((button) => {
+                button.setButtonText("Edit Views");
+                button.onClick(() => {
+                    new MultiSelectModal({
+                        app: this.app,
+                        title: "Select Desktop Views",
+                        options: AVAILABLE_VIEWS.desktop,
+                        selected: this.plugin.settings.availableViews.desktop,
+                        onSubmit: async (selectedViews: string[]) => {
+                            if (selectedViews.length === 0) {
+                                new Notice(
+                                    "You must select at least one view."
+                                );
+                                return;
+                            }
+                            this.plugin.settings.availableViews.desktop =
+                                selectedViews;
+                            await this.plugin.saveSettings();
+                            this.updateInitialViewDropdowns();
+                        },
+                    }).open();
+                });
+            });
+
+        // Checkboxes for Mobile Views
+        new Setting(containerEl)
+            .setName("Mobile Views")
+            .setDesc("Choose the views available on mobile devices.")
+            .addButton((button) => {
+                button.setButtonText("Edit Views");
+                button.onClick(() => {
+                    new MultiSelectModal({
+                        app: this.app,
+                        title: "Select Mobile Views",
+                        options: AVAILABLE_VIEWS.mobile,
+                        selected: this.plugin.settings.availableViews.mobile,
+                        onSubmit: async (selectedViews: string[]) => {
+                            if (selectedViews.length === 0) {
+                                new Notice(
+                                    "You must select at least one view."
+                                );
+                                return;
+                            }
+                            this.plugin.settings.availableViews.mobile =
+                                selectedViews;
+                            await this.plugin.saveSettings();
+                            this.updateInitialViewDropdowns();
+                        },
+                    }).open();
+                });
+            });
+
+        // Initial view settings
+        containerEl.createEl("h3", { text: "Initial Views" });
+
+        // Desktop Initial View
+        new Setting(containerEl)
+            .setName("Desktop Initial View")
+            .setDesc("Choose the initial view range on desktop devices.")
+            .addDropdown((dropdown) => {
+                dropdown.selectEl.classList.add(
+                    "desktop-initial-view-dropdown"
                 );
-                toggle.onChange(async (val) => {
-                    this.plugin.settings.clickToCreateEventFromMonthView = val;
+                this.updateInitialViewDropdownOptions(
+                    dropdown.selectEl,
+                    this.plugin.settings.availableViews.desktop,
+                    this.plugin.settings.initialView.desktop,
+                    AVAILABLE_VIEWS.desktop
+                );
+                dropdown.onChange(async (initialView) => {
+                    this.plugin.settings.initialView.desktop = initialView;
                     await this.plugin.saveSettings();
                 });
             });
 
-        containerEl.createEl("h2", { text: "Manage Calendars" });
+        // Mobile Initial View
+        new Setting(containerEl)
+            .setName("Mobile Initial View")
+            .setDesc("Choose the initial view range on mobile devices.")
+            .addDropdown((dropdown) => {
+                dropdown.selectEl.classList.add("mobile-initial-view-dropdown");
+                this.updateInitialViewDropdownOptions(
+                    dropdown.selectEl,
+                    this.plugin.settings.availableViews.mobile,
+                    this.plugin.settings.initialView.mobile,
+                    AVAILABLE_VIEWS.mobile
+                );
+                dropdown.onChange(async (initialView) => {
+                    this.plugin.settings.initialView.mobile = initialView;
+                    await this.plugin.saveSettings();
+                });
+            });
+    }
+
+    addManageCalendars(containerEl: HTMLElement) {
+        containerEl.createEl("h3", { text: "Manage Calendars" });
+
         addCalendarButton(
             this.app,
             this.plugin,
@@ -260,5 +360,56 @@ export class FullCalendarSettingTab extends PluginSettingTab {
             }),
             sourcesDiv
         );
+    }
+
+    updateInitialViewDropdownOptions(
+        dropdown: HTMLSelectElement,
+        availableViews: string[],
+        selectedView: string,
+        viewOptions: Record<string, string>
+    ) {
+        dropdown.innerHTML = ""; // Clear existing options
+        availableViews.forEach((view) => {
+            const option = document.createElement("option");
+            option.value = view;
+            option.text = viewOptions[view];
+            dropdown.add(option);
+        });
+        if (!availableViews.includes(selectedView)) {
+            dropdown.value = availableViews[0];
+            this.plugin.settings.initialView[
+                dropdown.classList.contains("desktop-initial-view-dropdown")
+                    ? "desktop"
+                    : "mobile"
+            ] = availableViews[0];
+        } else {
+            dropdown.value = selectedView;
+        }
+    }
+
+    updateInitialViewDropdowns() {
+        const desktopDropdown = document.querySelector<HTMLSelectElement>(
+            ".desktop-initial-view-dropdown"
+        );
+        const mobileDropdown = document.querySelector<HTMLSelectElement>(
+            ".mobile-initial-view-dropdown"
+        );
+
+        if (desktopDropdown) {
+            this.updateInitialViewDropdownOptions(
+                desktopDropdown,
+                this.plugin.settings.availableViews.desktop,
+                this.plugin.settings.initialView.desktop,
+                AVAILABLE_VIEWS.desktop
+            );
+        }
+        if (mobileDropdown) {
+            this.updateInitialViewDropdownOptions(
+                mobileDropdown,
+                this.plugin.settings.availableViews.mobile,
+                this.plugin.settings.initialView.mobile,
+                AVAILABLE_VIEWS.mobile
+            );
+        }
     }
 }

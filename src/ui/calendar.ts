@@ -47,6 +47,7 @@ interface ExtraRenderProps {
     eventMouseEnter?: (info: EventHoveringArg) => void;
     firstDay?: number;
     initialView?: { desktop: string; mobile: string };
+    availableViews?: { desktop: string[]; mobile: string[] };
     timeFormat24h?: boolean;
     openContextMenuForEvent?: (
         event: EventApi,
@@ -88,6 +89,26 @@ export function renderCalendar(
             }
         });
 
+    const viewOrder = [
+        "dayGridMonth",
+        "timeGrid3Days",
+        "timeGridDay",
+        "listWeek",
+    ];
+    const availableViews = settings?.availableViews || {
+        desktop: ["dayGridMonth", "timeGridWeek", "timeGridDay", "listWeek"],
+        mobile: ["dayGridMonth", "timeGrid3Days", "timeGridDay", "listWeek"],
+    };
+
+    const sortViews = (views: string[]) => {
+        return views.sort(
+            (a, b) => viewOrder.indexOf(a) - viewOrder.indexOf(b)
+        );
+    };
+
+    const sortedDesktopViews = sortViews(availableViews.desktop);
+    const sortedMobileViews = sortViews(availableViews.mobile);
+
     const cal = new Calendar(containerEl, {
         plugins: [
             // View plugins
@@ -113,18 +134,18 @@ export function renderCalendar(
             ? {
                   left: "prev,next today",
                   center: "title",
-                  right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
+                  right: sortedDesktopViews.join(","),
               }
             : !isMobile
             ? {
                   right: "today,prev,next",
-                  left: "timeGrid3Days,timeGridDay,listWeek",
+                  left: sortedMobileViews.join(","),
               }
             : false,
         footerToolbar: isMobile
             ? {
                   right: "today,prev,next",
-                  left: "timeGrid3Days,timeGridDay,listWeek",
+                  left: sortedMobileViews.join(","),
               }
             : false,
 
@@ -138,6 +159,9 @@ export function renderCalendar(
                 type: "timeGrid",
                 duration: { days: 3 },
                 buttonText: "3",
+            },
+            dayGridMonth: {
+                buttonText: isNarrow ? "30" : "month",
             },
         },
         firstDay: settings?.firstDay,
